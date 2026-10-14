@@ -219,7 +219,17 @@ class TestBypasserPlugins(unittest.IsolatedAsyncioTestCase):
                 res = await b.bypass("https://shortner.in/xyz")
                 self.assertEqual(res, "https://real-link.org/download")
 
-    # 12. Generic Fallback Solver Test
+    # 12. Linkvertise Dynamic & Static Test
+    async def test_linkvertise_dynamic_bypass(self):
+        from bypassers.linkvertise import LinkvertiseBypasser
+        b = LinkvertiseBypasser()
+        self.assertTrue(b.match("https://link-to.net/1275495/934.871548/dynamic?r=aHR0cHM6Ly9wYXN0ZWxpbmsubmV0L29keGRsdnNp"))
+        
+        # Test dynamic parameter decoding directly
+        res = await b.bypass("https://link-to.net/1275495/934.871548/dynamic?r=aHR0cHM6Ly9wYXN0ZWxpbmsubmV0L29keGRsdnNp")
+        self.assertEqual(res, "https://pastelink.net/odxdlvsi")
+
+    # 13. Generic Fallback Solver Test
     async def test_generic_fallback_meta_refresh(self):
         g = GenericBypasser()
         self.assertTrue(g.match("https://unknown-shortener.xyz/link"))
