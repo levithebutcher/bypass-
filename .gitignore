@@ -1,0 +1,42 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Environment secrets
+.env
+
+# Cloned research repos
+cloned_repos/
+
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+
+# Databases & logs
+*.db
+*.db-journal
+*.sqlite3
+bot.log
+runtime-log.txt
+
+# Playwright
+test-results/
+playwright-report/
+ms-playwright/
+
+# OS artifacts
+Thumbs.db
+.DS_Store
+
+# Temporary scratch & archive files
+*.zip
+*.tar.gz
+*.txt
+!requirements.txt
+*.json
+hex_extract*.py
+part*_cell.py
+cell*_code.py
