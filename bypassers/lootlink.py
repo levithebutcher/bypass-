@@ -48,22 +48,5 @@ class LootLinkBypasser(BaseBypasser):
             except Exception:
                 continue
 
-        # 3. Check public bypasser endpoint fallback
-        for api_url in [
-            f"https://bypass.pm/bypass2?url={url}",
-            f"https://api.bypass.vip/",
-        ]:
-            try:
-                if "bypass2" in api_url:
-                    r = await safe_fetch_url(api_url, method="GET")
-                else:
-                    r = await safe_fetch_url(api_url, method="POST", data={"url": url})
-                
-                data = r.json()
-                dest = data.get("destination") or data.get("url")
-                if dest and dest.startswith("http"):
-                    return dest
-            except Exception:
-                pass
-
+        # 3. If embedded extraction fails, raise BypassError to allow Generic Playwright solver to resolve
         raise BypassError("LootLink requires interactive task completion or solver is unavailable.")

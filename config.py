@@ -47,7 +47,8 @@ CACHE_TTL_DAYS: int = int(os.getenv("CACHE_TTL_DAYS", "14"))
 
 # Headless Browser (Playwright) Fallback
 ENABLE_PLAYWRIGHT: bool = os.getenv("ENABLE_PLAYWRIGHT", "true").lower() in ("true", "1", "yes")
-PLAYWRIGHT_TIMEOUT_MS: int = int(os.getenv("PLAYWRIGHT_TIMEOUT_MS", "15000"))
+PLAYWRIGHT_HEADLESS: bool = os.getenv("PLAYWRIGHT_HEADLESS", "true").lower() in ("true", "1", "yes")
+PLAYWRIGHT_TIMEOUT_MS: int = int(os.getenv("PLAYWRIGHT_TIMEOUT_MS", "25000"))
 
 # Logging
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()

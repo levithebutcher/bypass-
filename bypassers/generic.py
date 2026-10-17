@@ -5,8 +5,11 @@ import asyncio
 import logging
 from typing import Optional
 from urllib.parse import urlparse, urljoin
-from bs4 import BeautifulSoup
+import warnings
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 import httpx
+
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 from bypassers.base import BaseBypasser
 from bypassers.exceptions import BypassError, LinkDeadError
@@ -198,29 +201,103 @@ class GenericBypasser(BaseBypasser):
     # -------------------------------------------------------------
     async def _stage5_playwright_headless(self, url: str) -> Optional[str]:
         try:
+            from config import PLAYWRIGHT_HEADLESS, PLAYWRIGHT_TIMEOUT_MS
             from playwright.async_api import async_playwright
+
+            target_destination: Optional[str] = None
+            initial_host = urlparse(url).netloc
+
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(
+                    headless=PLAYWRIGHT_HEADLESS,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                    ]
+                )
                 context = await browser.new_context(
-                    user_agent=get_default_headers()["User-Agent"]
+                    user_agent=get_default_headers()["User-Agent"],
+                    viewport={"width": 1280, "height": 800},
                 )
                 page = await context.new_page()
 
-                # Navigate and wait for potential redirect or network idle
+                # Block intrusive popups and fast-forward timers
+                await page.add_init_script("""
+                    window.open = function() { return null; };
+                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    // Accelerate shortener timers if exposed on window
+                    setInterval(() => {
+                        if (typeof window.timer !== 'undefined' && window.timer > 0) window.timer = 0;
+                        if (typeof window.countdown !== 'undefined' && window.countdown > 0) window.countdown = 0;
+                        if (typeof window.counter !== 'undefined' && window.counter > 0) window.counter = 0;
+                    }, 500);
+                """)
+
+                # Intercept AJAX/Fetch responses that contain target destination URLs
+                async def on_response(response):
+                    nonlocal target_destination
+                    try:
+                        ct = response.headers.get("content-type", "")
+                        if "json" in ct or "links/go" in response.url:
+                            data = await response.json()
+                            if isinstance(data, dict):
+                                for key in ["url", "destination", "target", "link"]:
+                                    val = data.get(key)
+                                    if isinstance(val, str) and val.startswith("http") and urlparse(val).netloc != initial_host:
+                                        target_destination = val
+                                        logger.info("Generic Playwright intercepted target from %s: %s", response.url, val)
+                                        return
+                    except Exception:
+                        pass
+
+                page.on("response", on_response)
+
                 try:
-                    await page.goto(url, wait_until="networkidle", timeout=PLAYWRIGHT_TIMEOUT_MS)
-                except Exception:
-                    # Timeout or load error, check current page URL anyway
-                    pass
+                    await page.goto(url, wait_until="domcontentloaded", timeout=PLAYWRIGHT_TIMEOUT_MS)
+                except Exception as nav_err:
+                    logger.debug("Stage 5 goto notice: %s", nav_err)
 
-                # Allow JS redirect timers up to 3 seconds
-                await asyncio.sleep(3.0)
+                # Active interaction loop
+                deadline = asyncio.get_event_loop().time() + (PLAYWRIGHT_TIMEOUT_MS / 1000)
+                while asyncio.get_event_loop().time() < deadline:
+                    if target_destination:
+                        break
 
-                final_url = page.url
+                    current_url = page.url
+                    if current_url and current_url != url and not any(p in current_url for p in ["about:blank", "chrome-error:"]):
+                        current_host = urlparse(current_url).netloc
+                        if current_host and current_host != initial_host:
+                            target_destination = current_url
+                            logger.info("Stage 5 page redirected to new domain: %s", target_destination)
+                            break
+
+                    # Look for and click common shortener buttons ("Get Link", "Verify", "Continue", "Skip")
+                    btn_selectors = [
+                        "button:has-text('Get Link')",
+                        "a:has-text('Get Link')",
+                        "button:has-text('Continue')",
+                        "a:has-text('Continue')",
+                        "button:has-text('Verify')",
+                        "button:has-text('Skip Ad')",
+                        "a:has-text('Skip Ad')",
+                        "#btn-main",
+                        "#go-link button",
+                    ]
+                    for sel in btn_selectors:
+                        try:
+                            loc = page.locator(sel).first
+                            if await loc.is_visible():
+                                await loc.click(timeout=1000)
+                                await asyncio.sleep(1.0)
+                                break
+                        except Exception:
+                            pass
+
+                    await asyncio.sleep(1.5)
+
                 await browser.close()
-
-                if final_url and final_url != url and not any(p in final_url for p in ["about:blank", "chrome-error:"]):
-                    return final_url
+                return target_destination
         except Exception as e:
             logger.warning("Stage 5 (Playwright) failed: %s", e)
         return None
