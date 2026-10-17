@@ -29,6 +29,11 @@ from bypassers.droplink import DropLinkBypasser
 from bypassers.shrinkme import ShrinkMeBypasser
 from bypassers.tnlink import TnLinkBypasser
 from bypassers.adlinkfly_network import AdLinkFlyNetworkBypasser
+from bypassers.rekonise import RekoniseBypasser
+from bypassers.adfocus import AdFocusBypasser
+from bypassers.boost_ink import BoostInkBypasser
+from bypassers.social_unlock import SocialUnlockBypasser
+from bypassers.lootlink import LootLinkBypasser
 from bypassers.generic import GenericBypasser
 from bypassers.manager import BypasserManager
 from bypassers.exceptions import SafetyBlockedError, BypassError
@@ -229,7 +234,73 @@ class TestBypasserPlugins(unittest.IsolatedAsyncioTestCase):
         res = await b.bypass("https://link-to.net/1275495/934.871548/dynamic?r=aHR0cHM6Ly9wYXN0ZWxpbmsubmV0L29keGRsdnNp")
         self.assertEqual(res, "https://pastelink.net/odxdlvsi")
 
-    # 13. Generic Fallback Solver Test
+    # 13. Rekonise Plugin Test
+    async def test_rekonise_bypass(self):
+        b = RekoniseBypasser()
+        self.assertTrue(b.match("https://rekonise.com/sample-slug-123"))
+        self.assertTrue(b.match("https://rkns.link/sample-slug-123"))
+
+        mock_api_resp = MagicMock()
+        mock_api_resp.status_code = 200
+        mock_api_resp.json.return_value = {"url": "https://mediafire.com/file/download123"}
+        with patch("bypassers.rekonise.safe_fetch_url", return_value=mock_api_resp):
+            res = await b.bypass("https://rekonise.com/sample-slug-123")
+            self.assertEqual(res, "https://mediafire.com/file/download123")
+
+    # 14. AdFocus Plugin Test
+    async def test_adfocus_bypass(self):
+        b = AdFocusBypasser()
+        self.assertTrue(b.match("https://adfoc.us/12345678"))
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '<html><head><script>var click_url = "https://github.com/release/v1.0";</script></head></html>'
+        with patch("bypassers.adfocus.safe_fetch_url", return_value=mock_resp):
+            res = await b.bypass("https://adfoc.us/12345678")
+            self.assertEqual(res, "https://github.com/release/v1.0")
+
+    # 15. Boost.ink Plugin Test
+    async def test_boost_ink_bypass(self):
+        import base64
+        b = BoostInkBypasser()
+        self.assertTrue(b.match("https://boost.ink/sample-code"))
+        self.assertTrue(b.match("https://bst.gg/another-code"))
+
+        b64_url = base64.b64encode(b"https://destination.org/unlocked").decode("utf-8")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = f'<html><body><button data-target="{b64_url}">Get Link</button></body></html>'
+        with patch("bypassers.boost_ink.safe_fetch_url", return_value=mock_resp):
+            res = await b.bypass("https://boost.ink/sample-code")
+            self.assertEqual(res, "https://destination.org/unlocked")
+
+    # 16. SocialUnlock Plugin Test
+    async def test_social_unlock_bypass(self):
+        b = SocialUnlockBypasser()
+        self.assertTrue(b.match("https://sub2unlock.com/code123"))
+        self.assertTrue(b.match("https://mboost.me/xyz"))
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '<html><body><script>var unlocked_url = "https://mega.nz/file/abc12345";</script></body></html>'
+        with patch("bypassers.social_unlock.safe_fetch_url", return_value=mock_resp):
+            res = await b.bypass("https://sub2unlock.com/code123")
+            self.assertEqual(res, "https://mega.nz/file/abc12345")
+
+    # 17. LootLink Plugin Test
+    async def test_lootlink_bypass(self):
+        b = LootLinkBypasser()
+        self.assertTrue(b.match("https://loot-link.com/s?mK3a"))
+        self.assertTrue(b.match("https://lootdest.org/s?abc"))
+
+        mock_page_resp = MagicMock()
+        mock_page_resp.status_code = 200
+        mock_page_resp.text = '<html><body><script>var destination = "https://drive.google.com/open?id=123";</script></body></html>'
+        with patch("bypassers.lootlink.safe_fetch_url", return_value=mock_page_resp):
+            res = await b.bypass("https://loot-link.com/s?mK3a")
+            self.assertEqual(res, "https://drive.google.com/open?id=123")
+
+    # 18. Generic Fallback Solver Test
     async def test_generic_fallback_meta_refresh(self):
         g = GenericBypasser()
         self.assertTrue(g.match("https://unknown-shortener.xyz/link"))

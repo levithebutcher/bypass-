@@ -70,3 +70,18 @@ For any unknown or unhandled shortened URL, our engine executes a 5-step fallbac
 1. **Stripped Malicious / Suspicious Logic**: Removed third-party tracking, arbitrary code execution, telemetry, and unverified sketchy API calls.
 2. **Removed Hardcoded Credentials**: Cloned repos had hardcoded cookie hashes, tokens, and personal keys; all removed in favor of clean `.env` configuration.
 3. **File Safety / Download Protection**: The bypasser is strictly a URL expander. If a resolved URL headers indicate a direct executable download (`.exe`, `.scr`, `.bat`, `.apk`, `.vbs`, `.cmd`, `.msi`, `.ps1`), or `Content-Disposition: attachment; filename="*.exe"`, the bot refuses to trigger download execution and returns the resolved link with a safety advisory.
+
+---
+
+## 5. Userscript (Tampermonkey) Integration & Added Networks
+
+Analyzed `bypass.city` / `adbypass.org` Tampermonkey userscript (`bypass (1) (1).user.js`):
+
+| Network / Domain | Logic / Reverse Engineered Method | Implementation Status |
+| :--- | :--- | :--- |
+| **Rekonise / rkns.link** | Queries public REST API `https://api.rekonise.com/social-unlocks/{slug}` which returns `{"url": "destination"}` | **Implemented** (`bypassers/rekonise.py`) |
+| **AdFocus (`adfoc.us`)** | Parses `click_url` script variable or `#show_skip` button targets directly | **Implemented** (`bypassers/adfocus.py`) |
+| **Boost.ink (`bst.gg`, `booo.st`, etc.)** | Decodes `data-target` / `data-url` base64 attributes and inline `atob()` strings | **Implemented** (`bypassers/boost_ink.py`) |
+| **Social Unlock / Sub2Unlock** (`sub2unlock`, `sub1s`, `mboost.me`, `social-unlock`, etc.) | Extracts unlocked destination URL from embedded scripts, data attributes, and unlock anchors | **Implemented** (`bypassers/social_unlock.py`) |
+| **LootLink / LootDest** (35+ domains: `loot-link.com`, `lootdest.com`, `links-loot.com`, etc.) | Scrapes client unlock scripts and queries API solver fallbacks | **Implemented** (`bypassers/lootlink.py`) |
+
